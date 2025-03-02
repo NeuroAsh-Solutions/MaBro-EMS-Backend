@@ -3,6 +3,8 @@ const jwt = require("jsonwebtoken");
 const config = require("../config/dotenv");
 const axios = require('axios');
 
+// Define allowed roles
+const ALLOWED_ROLES = ["student", "admin", "teacher", "parent"];
 
 exports.signUp = async (req, res) => {
   const {
@@ -24,7 +26,8 @@ exports.signUp = async (req, res) => {
     studentParentName,
     studentParentName2,
     studentParentPhoneNumber,
-    studentParentPhoneNumber2
+    studentParentPhoneNumber2,
+    role = "student" // Default to student if no role is provided
   } = req.body;
 
   try {
@@ -34,41 +37,38 @@ exports.signUp = async (req, res) => {
         error: "Email and password are required" 
       });
     }
+    
+    // Validate role
+    if (!ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({
+        error: `Invalid role. Allowed roles are: ${ALLOWED_ROLES.join(', ')}`
+      });
+    }
 
-    // 1️⃣ Create student in Firebase Auth (only email & password)
+    // 1️⃣ Create user in Firebase Auth (only email & password)
     const userRecord = await auth.createUser({
       email: studentEmail,
       password: studentPassword,
       displayName: `${studentFirstName} ${studentLastName}`
     });
 
-    // 2️⃣ Store full student details in Firestore
-    await db.collection("students").doc(userRecord.uid).set({
-      studentId,
-      studentFirstName,
-      studentLastName,
-      studentEmail,
-      studentAge,
-      studentGender,
-      studentDOB,
-      studentGrade,
-      studentInstitute,
-      studentPhoneNumber,
-      studentSecondaryPhoneNumber,
-      studentAddress,
-      studentCity,
-      studentProvince,
-      studentParentName,
-      studentParentName2,
-      studentParentPhoneNumber,
-      studentParentPhoneNumber2,
-      role: "student", // Assign role as 'student'
+    // 2️⃣ Store full user details in appropriate collection based on role
+    const userCollection = role === "student" ? "students" : `${role}s`;
+    await db.collection(userCollection).doc(userRecord.uid).set({
+      userId: studentId,
+      firstName: studentFirstName,
+      lastName: studentLastName,
+      email: studentEmail,
+      age: studentAge,
+      gender: studentGender,
+      // Add other fields as appropriate for this role
+      role,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    // 3️⃣ Generate JWT Token
+    // 3️⃣ Generate JWT Token with the appropriate role
     const authToken = jwt.sign(
-      { uid: userRecord.uid, email: studentEmail, role: "student" },
+      { uid: userRecord.uid, email: studentEmail, role },
       config.JWT_SECRET,
       { expiresIn: "24h" }
     );
@@ -76,7 +76,8 @@ exports.signUp = async (req, res) => {
     res.status(201).json({
       message: "User registered successfully",
       token: authToken, // Return token
-      uid: userRecord.uid
+      uid: userRecord.uid,
+      role // Return the assigned role
     });
   } catch (error) {
     console.error("Signup Error:", error);
@@ -104,14 +105,24 @@ exports.login = async (req, res) => {
     // If we get here, authentication was successful
     const uid = response.data.localId;
     
-    // Get student's role from Firestore
-    const studentDoc = await db.collection("students").doc(uid).get();
-    if (!studentDoc.exists) {
-      return res.status(404).json({ error: "Student not found" });
+    // Try to find the user in different collections
+    const collections = ["students", "admins", "teachers", "parents"];
+    let userData = null;
+    let role = "student"; // Default role
+    
+    // Look for the user in each collection until found
+    for (const collection of collections) {
+      const userDoc = await db.collection(collection).doc(uid).get();
+      if (userDoc.exists) {
+        userData = userDoc.data();
+        role = userData.role || collection.slice(0, -1); // Remove trailing 's'
+        break;
+      }
     }
-
-    const studentData = studentDoc.data();
-    const role = studentData.role || "student";
+    
+    if (!userData) {
+      return res.status(404).json({ error: "User not found" });
+    }
 
     // Generate our own JWT token
     const authToken = jwt.sign(
@@ -122,7 +133,8 @@ exports.login = async (req, res) => {
 
     res.status(200).json({
       message: "Login successful",
-      token: authToken
+      token: authToken,
+      role
     });
   } catch (error) {
     console.error("Login error:", error.response?.data || error.message);
