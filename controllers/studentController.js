@@ -1,4 +1,5 @@
 const studentService = require("../services/studentService");
+const { db } = require('../firebase-auth-config');
 
 exports.createStudent = async (req, res) => {
     try {
@@ -18,16 +19,27 @@ exports.createStudent = async (req, res) => {
 
 exports.getAllStudents = async (req, res) => {
     try {
-        const students = await studentService.getAllStudents();
-        res.status(200).json({
-            message: "Students fetched successfully!",
-            students
-        })
+        const studentsSnapshot = await db.collection('students').get();
+        
+        if (studentsSnapshot.empty) {
+            return res.status(200).json({ students: [] });
+        }
+        
+        const students = [];
+        studentsSnapshot.forEach(doc => {
+            students.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        
+        res.status(200).json({ students });
     } catch (error) {
-        res.status(500).json({
-            message: "Failed to fetch students!",
-            error: error.message
-        })
+        console.error('Error getting students:', error);
+        res.status(500).json({ 
+            message: 'Failed to fetch students!', 
+            error: error.message 
+        });
     }
 };
 

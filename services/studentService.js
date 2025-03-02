@@ -1,88 +1,87 @@
-const db = require("../config/firebaseAdmin");
-// Remove this line since we're not using the Student class anymore
-// const Student = require("../models/studentModel");
+const { db } = require('../firebase-auth-config');
 
+// Create a new student
 exports.createStudent = async (studentData) => {
     try {
-
-        const studentPOJO = {
-            studentId: studentData.studentId,
-            studentFirstName: studentData.studentFirstName,
-            studentLastName: studentData.studentLastName,
-            studentEmail: studentData.studentEmail,
-            studentAge: studentData.studentAge,
-            studentGender: studentData.studentGender,
-            studentDOB: studentData.studentDOB,
-            studentGrade: studentData.studentGrade,
-            studentInstitute: studentData.studentInstitute,
-            studentPassword: studentData.studentPassword,
-            studentPhoneNumber: studentData.studentPhoneNumber,
-            studentSecondaryPhoneNumber: studentData.studentSecondaryPhoneNumber,
-            studentAddress: studentData.studentAddress,
-            studentCity: studentData.studentCity,
-            studentProvince: studentData.studentProvince,
-            studentParentName: studentData.studentParentName,
-            studentParentName2: studentData.studentParentName2,
-            studentParentPhoneNumber: studentData.studentParentPhoneNumber,
-            studentParentPhoneNumber2: studentData.studentParentPhoneNumber2,
+        const docRef = await db.collection('students').add(studentData);
+        return {
+            id: docRef.id,
+            ...studentData
         };
-
-        await db.collection("students").doc(studentData.studentId).set(studentPOJO);
-        return studentPOJO;
     } catch (error) {
-        console.error('Error in createStudent:', error);
+        console.error('Error creating student:', error);
         throw error;
     }
 };
 
-exports.updateStudent = async (studentId, studentData) => {
+// Get all students
+exports.getAllStudents = async () => {
     try {
-        const studentDoc = await db.collection("students").doc(studentId).get();
-        if (!studentDoc.exists) {
-            throw new Error("Student for the specific id " + studentId + " given does not exist!");
+        const studentsSnapshot = await db.collection('students').get();
+        
+        if (studentsSnapshot.empty) {
+            return [];
         }
-
-        const studentPOJO = {
-            studentId: studentData.studentId,
-            studentFirstName: studentData.studentFirstName,
-            studentLastName: studentData.studentLastName,
-            studentEmail: studentData.studentEmail,
-            studentAge: studentData.studentAge,
-            studentGender: studentData.studentGender,
-            studentDOB: studentData.studentDOB,
-            studentGrade: studentData.studentGrade,
-            studentInstitute: studentData.studentInstitute,
-            studentPassword: studentData.studentPassword,
-            studentPhoneNumber: studentData.studentPhoneNumber,
-            studentSecondaryPhoneNumber: studentData.studentSecondaryPhoneNumber,
-            studentAddress: studentData.studentAddress,
-            studentCity: studentData.studentCity,
-            studentProvince: studentData.studentProvince,
-            studentParentName: studentData.studentParentName,
-            studentParentName2: studentData.studentParentName2,
-            studentParentPhoneNumber: studentData.studentParentPhoneNumber,
-            studentParentPhoneNumber2: studentData.studentParentPhoneNumber2,
-        };
-
-        await db.collection("students").doc(studentId).update(studentPOJO);
-        return studentPOJO;
+        
+        const students = [];
+        studentsSnapshot.forEach(doc => {
+            students.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        
+        return students;
     } catch (error) {
-        console.error('Error in updateStudent:', error);
+        console.error('Error getting students:', error);
         throw error;
     }
 };
 
-exports.getAllStudents = async() => {
-    const studentSnapshot = await db.collection("students").get();
-    return studentSnapshot.docs.map((doc) => doc.data());
-}
+// Get student by ID
+exports.getStudentById = async (id) => {
+    try {
+        const studentDoc = await db.collection('students').doc(id).get();
+        
+        if (!studentDoc.exists) {
+            throw new Error(`Student with ID ${id} not found`);
+        }
+        
+        return {
+            id: studentDoc.id,
+            ...studentDoc.data()
+        };
+    } catch (error) {
+        console.error(`Error getting student with ID ${id}:`, error);
+        throw error;
+    }
+};
 
-exports.getStudentById = async (studentId) => {
-    const studentDoc = await db.collection("students").doc(studentId).get();
-    return studentDoc.exists ? studentDoc.data() : null;
-}
+// Update a student
+exports.updateStudent = async (id, studentData) => {
+    try {
+        await db.collection('students').doc(id).update(studentData);
+        
+        // Get the updated document
+        const updatedDoc = await db.collection('students').doc(id).get();
+        
+        return {
+            id: updatedDoc.id,
+            ...updatedDoc.data()
+        };
+    } catch (error) {
+        console.error(`Error updating student with ID ${id}:`, error);
+        throw error;
+    }
+};
 
-exports.deleteStudent = async (studentId) => {
-    await db.collection("students").doc(studentId).delete();
-    return { message: "Student deleted successfully!" };
-}
+// Delete a student
+exports.deleteStudent = async (id) => {
+    try {
+        await db.collection('students').doc(id).delete();
+        return { success: true };
+    } catch (error) {
+        console.error(`Error deleting student with ID ${id}:`, error);
+        throw error;
+    }
+};

@@ -1,4 +1,4 @@
-const admin = require("../config/firebaseAdmin");
+const { admin, db } = require("../config/firebaseAdmin");
 
 // Create User & Assign Role
 exports.createUser = async (email, password, displayName, role = "student") => {

@@ -1,6 +1,8 @@
-const admin = require("../config/firebaseAdmin");
+const { admin, auth, db } = require("../firebase-auth-config");
 const jwt = require("jsonwebtoken");
-const db = admin.firestore(); // Firestore instance
+const config = require("../config/dotenv");
+const axios = require('axios');
+
 
 exports.signUp = async (req, res) => {
   const {
@@ -26,8 +28,15 @@ exports.signUp = async (req, res) => {
   } = req.body;
 
   try {
+    // Validate required fields
+    if (!studentEmail || !studentPassword) {
+      return res.status(400).json({ 
+        error: "Email and password are required" 
+      });
+    }
+
     // 1️⃣ Create student in Firebase Auth (only email & password)
-    const userRecord = await admin.auth().createUser({
+    const userRecord = await auth.createUser({
       email: studentEmail,
       password: studentPassword,
       displayName: `${studentFirstName} ${studentLastName}`
@@ -59,8 +68,8 @@ exports.signUp = async (req, res) => {
 
     // 3️⃣ Generate JWT Token
     const authToken = jwt.sign(
-      { uid: userRecord.uid, email: studentEmail, role: "student" }, // Embed role
-      process.env.JWT_SECRET,
+      { uid: userRecord.uid, email: studentEmail, role: "student" },
+      config.JWT_SECRET,
       { expiresIn: "24h" }
     );
 
@@ -70,39 +79,54 @@ exports.signUp = async (req, res) => {
       uid: userRecord.uid
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Signup Error:", error);
+    return res.status(500).json({ 
+      error: error.message || "Error creating user",
+      details: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 };
 
 exports.login = async (req, res) => {
-    const { email, password } = req.body;
-  
-    try {
-      // Firebase Auth doesn't support direct email/password authentication
-      const userRecord = await admin.auth().getUserByEmail(email);
-  
-      // Get student's role from Firestore
-      const studentDoc = await db.collection("students").doc(userRecord.uid).get();
-      if (!studentDoc.exists) {
-        return res.status(404).json({ error: "Student not found" });
+  const { email, password } = req.body;
+
+  try {
+    // Use Firebase REST API to verify credentials
+    const response = await axios.post(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${process.env.FIREBASE_API_KEY}`,
+      {
+        email,
+        password,
+        returnSecureToken: true
       }
-  
-      const studentData = studentDoc.data();
-      const role = studentData.role || "student";
-  
-      // Generate JWT token
-      const authToken = jwt.sign(
-        { uid: userRecord.uid, email, role },
-        process.env.JWT_SECRET,
-        { expiresIn: "24h" }
-      );
-  
-      res.status(200).json({
-        message: "Login successful",
-        token: authToken
-      });
-    } catch (error) {
-      res.status(401).json({ error: "Invalid credentials" });
+    );
+
+    // If we get here, authentication was successful
+    const uid = response.data.localId;
+    
+    // Get student's role from Firestore
+    const studentDoc = await db.collection("students").doc(uid).get();
+    if (!studentDoc.exists) {
+      return res.status(404).json({ error: "Student not found" });
     }
-  };
+
+    const studentData = studentDoc.data();
+    const role = studentData.role || "student";
+
+    // Generate our own JWT token
+    const authToken = jwt.sign(
+      { uid, email, role },
+      config.JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    res.status(200).json({
+      message: "Login successful",
+      token: authToken
+    });
+  } catch (error) {
+    console.error("Login error:", error.response?.data || error.message);
+    res.status(401).json({ error: "Invalid credentials" });
+  }
+};
   

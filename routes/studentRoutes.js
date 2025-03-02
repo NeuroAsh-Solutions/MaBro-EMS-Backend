@@ -4,11 +4,14 @@ const studentController = require("../controllers/studentController");
 const verifyToken = require("../auth/authMiddleware");
 const authorizeRole = require("../auth/authRoleMiddleware");
 
-router.post("/", verifyToken, authorizeRole(["student"]),studentController.getAllStudents);
-router.get("/:id", verifyToken, authorizeRole(["student"]), studentController.getStudentById);
-router.post("/", verifyToken, authorizeRole(["student"]), studentController.createStudent);
-router.put("/:id", verifyToken, authorizeRole(["student"]), studentController.updateStudent);
-router.delete("/:id", verifyToken, authorizeRole(["student"]), studentController.deleteStudent);
+// Get all students route
+router.get("/", verifyToken, studentController.getAllStudents);
+
+// Add missing routes
+router.get("/:id", verifyToken, studentController.getStudentById);
+router.post("/", verifyToken, studentController.createStudent);
+router.put("/:id", verifyToken, studentController.updateStudent);
+router.delete("/:id", verifyToken, studentController.deleteStudent);
 
 module.exports = router;
 
