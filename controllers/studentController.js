@@ -58,6 +58,22 @@ exports.getStudentById = async (req, res) => {
     }
 };
 
+exports.getStudentByUId = async (req, res) => {
+    const uId = req.user.uid;
+    try {
+        const student = await studentService.getStudentById(uId);
+        res.status(200).json({
+            message: "Student fetched successfully!",
+            student
+        })
+    } catch (error) {
+        res.status(500).json({
+            message: "Failed to fetch the specific student!",
+            error: error.message
+        })
+    }
+};
+
 exports.getStudentByEmail = async (req, res) => {
     try {
         const student = await studentService.getStudentByEmail(req.params.email);
