@@ -58,6 +58,21 @@ exports.getStudentById = async (req, res) => {
     }
 };
 
+exports.getStudentByEmail = async (req, res) => {
+    try {
+        const student = await studentService.getStudentByEmail(req.params.email);
+        res.status(200).json({
+            message: "Student fetched successfully!",
+            student
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: "Failed to fetch the student by email!",
+            error: error.message
+        });
+    }
+};
+
 exports.deleteStudent = async (req, res) => {
     try {
         const result = await studentService.deleteStudent(req.params.id);
