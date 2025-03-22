@@ -57,6 +57,28 @@ exports.getStudentById = async (id) => {
     }
 };
 
+exports.getStudentByEmail = async (email) => {
+    try {
+        const studentQuery = await db.collection('students')
+            .where('studentEmail', '==', email)
+            .get();
+
+        if (studentQuery.empty) {
+            throw new Error(`Student with email ${email} not found`);
+        }
+
+        const studentDoc = studentQuery.docs[0];
+
+        return {
+            id: studentDoc.id,
+            ...studentDoc.data()
+        };
+    } catch (error) {
+        console.error(`Error getting student with email ${email}:`, error);
+        throw error;
+    }
+};
+
 // Update a student
 exports.updateStudent = async (id, studentData) => {
     try {
